@@ -1,55 +1,16 @@
 '''
-Q learning 不難，先從名詞講起，你會看到如下名詞：
-    state:當前節點名稱
-    action:可選的動作，根據所選動作會移動到下一個節點
-    reward: 走到當前節點要扣多少分
-
-且應該會有兩個表格
-    map list: 存放地圖，或節點之間關係，多半也會把reward寫在這裡
-    Q table: 會存放每一個節點state做的每一個action的期望值，期望值越大表示越佳路線，也越容易走這條路
-
-更新Q table公式
-    Qsa = Qsa(1-a) + a(r + gamma * max(Qs'a'))
-    把當前節點s的a行動的期望值
-    更新成
-    保留一定的原始值，然後根據學習率和gamma值去加上下一個節點的所有行動中最高的期望值
-
-    常會看見寫成
-    Qsa = Qsa + a(r + gamma * max(Qs'a') - Qsa)
-    後面的(r + gamma * max(Qs'a') - Qsa)被稱為TD Error (時序差分誤差)
-    
-    a = 學習率(要保留多少原始記憶)
-    r = reward（這一步的真實回饋）
-    gamma = 折扣因子 (對未來的期望)
-    max(Qs'a') = 貪婪預期
-
-重要概念
-    每次選擇節點的時候，除了查Q table選擇路線，還要有小機率隨機選擇路線，以保證agent能夠有機會去嘗試新路線
-    eGreddy: 隨機選擇路線的機率
-    episode: 總共要訓練幾次
-
-
-目標：讓一個agent在5*5的迷宮中找到出路
+隨機生成地圖
+且起點在地圖中央
 '''
 
 import numpy as np
 import random
 import os
 import time
-
+import random
+from collections import deque
 #兩個會用到的functoin，可以先往下看第一步，之後遇到再回來看函式細節
 def check_next(cur_s, eGreddy):
-    '''
-    輸入
-        現在的節點
-        eGreddy
-    輸出
-        下一個節點
-        所使用的行動
-        reward
-    如果撞到邊緣，則重新選
-    如果撞到牆壁，則原地不動
-    '''
     global Q_table
     global map_list
     global r_table
@@ -82,7 +43,7 @@ def check_next(cur_s, eGreddy):
     
     xx =next_s[0]
     yy =next_s[1]
-    while xx<0 or xx>=6 or yy<0 or yy>=5:
+    while xx<0 or xx>=len(map_list) or yy<0 or yy>=len(map_list[0]):
         next_s, decided_action,reward = check_next(cur_s, eGreddy)
         xx =next_s[0]
         yy =next_s[1]
@@ -113,7 +74,7 @@ def update_q_table(cur_s, action, next_s, a, gamma, r):
     return 0
 
 def console_update(episode_eash,step, Q_table,cur_s,reward_c,next_s):
-    os.system('clear')
+    # os.system('clear')
     print()
     print(f"{episode_eash =}")
     print(f"{step =}")
@@ -121,7 +82,7 @@ def console_update(episode_eash,step, Q_table,cur_s,reward_c,next_s):
     print(f"{next_s =}")
     print(f"{reward_c =}")
     for i in Q_table:
-        print(i)
+        print(" ".join([f"{val:>5.2f}" for val in i]))
     return 0
 ##############################
 #第一步：建立環境 和 初始化Q table
@@ -130,52 +91,59 @@ def console_update(episode_eash,step, Q_table,cur_s,reward_c,next_s):
 #  0 表示可以走
 #  1 表示不能走
 #  2 表示目標
-map_list =[
-            [0, 0, 0, 0, 0],
-            [0, 1, 1, 1, 1],
-            [0, 0, 0, 0, 0],
-            [0, 0, 1, 1, 0],
-            [0, 1, 0, 0, 0],
-            [0, 1, 0, 1, 2]
-                ]
-#30個節點 * 4個行動 都設定為0
-Q_table = [#上 下 左 右
-            [0, 0, 0, 0],  #s1
-            [0, 0, 0, 0],   #s2
-            [0, 0, 0, 0],   #s3
-            [0, 0, 0, 0],   #s4
-            [0, 0, 0, 0],   #依此類推
 
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0], 
 
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0], 
+def generate_map_with_random_goal(row=6, col=5):
+    while True:
+        # 1. 建立全是 0 (路) 的地圖
+        grid = [[0 for _ in range(col)] for _ in range(row)]
+        
+        # 2. 設定起點在正中央
+        start = (row // 2, col // 2)
+        grid[start[0]][start[1]] = 0 
+        
+        # 3. 隨機放置牆壁 (權重設定，例如 20%)
+        for r in range(row):
+            for c in range(col):
+                if (r, c) == start: continue
+                if random.random() < 0.2: # 20% 是牆
+                    grid[r][c] = 1
+        
+        # 4. 隨機放置終點
+        while True:
+            goal = (random.randint(0, row-1), random.randint(0, col-1))
+            if goal != start and grid[goal[0]][goal[1]] == 0:
+                grid[goal[0]][goal[1]] = 2
+                break
+        
+        # 5. 檢查連通性 (確保 Agent 不會被牆包圍)
+        if is_reachable(grid, start, goal, row, col):
+            return grid, start
 
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0], 
+def is_reachable(grid, start, goal, row, col):
+    """使用 BFS 檢查是否有路可走"""
+    queue = deque([start])
+    visited = {start}
+    while queue:
+        r, c = queue.popleft()
+        if (r, c) == goal: return True
+        for dr, dc in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < row and 0 <= nc < col and grid[nr][nc] != 1 and (nr, nc) not in visited:
+                visited.add((nr, nc))
+                queue.append((nr, nc))
+    return False
 
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-            [0, 0, 0, 0],  
-                ]
+# 使用方式
+row_n =6
+column_n =5
+map_list, start_point = generate_map_with_random_goal(row_n,column_n)
+print(f"{row_n = }")
+print(f"{column_n = }")
+print(f"{start_point = }")
+for i in map_list:
+    print(i)
+Q_table = [[0, 0, 0, 0] for _ in range(row_n*column_n)]
 
 ##############################
 #第二步：設定參數
@@ -188,7 +156,6 @@ r_table = [-0.1,   -5,   100]
 eGreddy = 0.5
 episode_n = 100
 
-start_point = [0,2]
 start_time = time.time()
 final_report_each_episode_reward = [999]  #最後用來展現訓練成果用的，和訓練無關
 
@@ -219,9 +186,13 @@ for episode_eash in range(episode_n):
         # reward_c += r_table[cur_node_type]
         reward_c += reward
         #每秒更新資訊到終端畫面
-        if time.time() - start_time  >= 1:
-            start_time = time.time()
-            console_update(episode_eash,step, Q_table,cur_s,reward_c,next_s)
+        # if time.time() - start_time  >= 1:
+            # start_time = time.time()
+            # console_update(episode_eash,step, Q_table,cur_s,reward_c,next_s)
+        #每step更新資訊到終端畫面
+        # if 1:
+        #     start_time = time.time()
+        #     console_update(episode_eash,step, Q_table,cur_s,reward_c,next_s)
         #確認是否抵達終點
         if cur_node_type == 2:
             done = 1
@@ -233,11 +204,8 @@ print("finish!!!!!!!!!!!!!!!report time")
 for i ,t in enumerate(final_report_each_episode_reward):
     if i % 1 == 0:
         print(f"{i:<10}:{t:>10.2f}")
-
-'''
-這是一個簡單的Q learning程式碼
-會跑100次模擬，每次模擬都要跑到終點才會結束，因此如果地圖太過複雜，導致要很久才能到達終點，可能會影響學習
-
-Q2.py 我們可以稍微小改一下程式碼，讓他可以隨機生成地圖
-Q3.py 新增視覺化過程，這是強化學習非常重要的步驟，有助於理解，而且非常有趣
-'''
+print(f"{row_n = }")
+print(f"{column_n = }")
+print(f"{start_point = }")
+for i in map_list:
+    print(i)
