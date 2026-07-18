@@ -94,11 +94,11 @@ def update_q_table(Q_table, cur_s, action, next_s, a, gamma, r, col_n):
     Q_table[node_id_cur][action] += a * (r + gamma * max_v - Q_table[node_id_cur][action])
 
 # --- 3. 主程式 ---
-row_n, col_n = 30,30
+row_n, col_n = 60,100
 map_list, start_point = generate_map(row_n, col_n)
 Q_table = [[0.0 for _ in range(4)] for _ in range(row_n*col_n)]
 a, gamma, r_table = 0.1, 0.95, [-0.1, -5, 100]
-eGreddy, episode_n = 0.5, 1000
+eGreddy, episode_n = 0.5, 300
 
 update_plot(map_list, Q_table, start_point, 0, 0,start_point) # 1. 初始化圖表
 
