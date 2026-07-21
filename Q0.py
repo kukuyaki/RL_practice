@@ -22,6 +22,11 @@ matplotlib
 seaborn
 pygame
 
+
+當我們要作強化學習時
+1.要用什麼環境 （gymnasium）
+2.輸入輸出
+3.要用什麼技術（RL Baselines）「深度學習（PyTorch）」
 '''
 
 
