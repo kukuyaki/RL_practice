@@ -15,6 +15,10 @@
 
 <br>
 <br>
+當你發現效果不彰時
+    獎勵稀疏：獎勵機制設定的不好，導致學習效果差
+    課程學習：將太複雜的工作目標拆成多個小目標，循序漸進學習
+    隨機網路蒸馏（Random Network Distillation, RND）：讓機器人更有好奇心
 <br>
 <br>
 
@@ -24,19 +28,18 @@
 
 Value-Based Methods：
 
-DQN (Deep Q-Network)：將 Q-Learning 與神經網路結合，理解 Experience Replay 與 Target Network 的重要性。
+    DQN (Deep Q-Network)：將 Q-Learning 與神經網路結合，理解 Experience Replay 與 Target Network 的重要性。
 
 Policy-Based Methods：
 
-Policy Gradient：直接優化策略，而非價值函數。
+    Policy Gradient：直接優化策略，而非價值函數。
 
 Actor-Critic 架構：同時使用 Policy (Actor) 與 Value (Critic) 進行優化，是現代算法的主流架構（如 A2C, A3C）。
 
-進階算法 (State-of-the-art)：
+    進階算法 (State-of-the-art)：
 
-PPO (Proximal Policy Optimization)：目前業界與研究最常用的穩定算法。
+    PPO (Proximal Policy Optimization)：目前業界與研究最常用的穩定算法。
 
-SAC (Soft Actor-Critic)：考慮探索性 (Entropy) 的高效率連續控制算法。
+    SAC (Soft Actor-Critic)：考慮探索性 (Entropy) 的高效率連續控制算法。
 
-
-Richard S. Sutton 的 Reinforcement Learning: An Introduction
+推薦文獻：Richard S. Sutton 的 Reinforcement Learning: An Introduction

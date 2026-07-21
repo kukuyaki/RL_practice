@@ -207,4 +207,6 @@ Q4.py 優化
 可以看出我們已經會的q learning 和類似的sarsa和下一步要使用神經網路的DQN，還只在on/off policy上面有差異而已
 之後我們還要試試看model based
 試試看policy based 和 actor critic
+
+下一關，DQN.py
 '''
