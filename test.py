@@ -1,4 +1,6 @@
-import random
+import matplotlib.pyplot as plt
+plt.ion()  # 開啟互動模式
+fig, ax = plt.subplots(figsize=(6, 5))
 
-print(random.random())
-print(random.sample([0,1,2,3]))
+while 1:
+    pass

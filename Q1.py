@@ -23,11 +23,17 @@ Q learning 不難，先從名詞講起，你會看到如下名詞：
     gamma = 折扣因子 (對未來的期望)
     max(Qs'a') = 貪婪預期
 
-重要概念
+選路策略
     每次選擇節點的時候，除了查Q table選擇路線，還要有小機率隨機選擇路線，以保證agent能夠有機會去嘗試新路線
     eGreddy: 隨機選擇路線的機率
     episode: 總共要訓練幾次
 
+重要概念
+    Q learning是一種off policy的策略
+    off policy： 選擇路線的策略 和 更新Q值的策略不一樣
+
+    Qlearning的選錄策略是 隨機
+    Qlearning的選錄策略是 最大值
 
 目標：讓一個agent在5*5的迷宮中找到出路
 '''

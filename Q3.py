@@ -14,7 +14,7 @@ import time
 
 # --- 1. 視覺化工具設定 ---
 plt.ion()  # 開啟互動模式
-fig, ax = plt.subplots(figsize=(6, 5))
+fig, ax = plt.subplots(figsize=(12, 10))
 
 def update_plot(map_list, Q_table, cur_s, episode, step, sp):
     ax.clear()
@@ -33,15 +33,18 @@ def update_plot(map_list, Q_table, cur_s, episode, step, sp):
                 ax.text(c, r, 'X', ha='center', va='center', color='black', fontweight='bold')
             elif map_list[r][c] == 2:
                 ax.text(c, r, 'G', ha='center', va='center', color='yellow', fontweight='bold')
-    ax.text(sp[0], sp[1], 'S', ha='center', va='center', color='yellow', fontweight='bold')
+    ax.text(sp[1],sp[0], 'S', ha='center', va='center', color='yellow', fontweight='bold')
 
     # 標示 Agent
     ax.scatter(cur_s[1], cur_s[0], c='white', s=300, edgecolors='black', label='Agent')
     ax.set_title(f"Episode: {episode} | Step: {step}")
     plt.pause(0.01)
 
-# --- 2. 核心邏輯 ---
+
 def is_reachable(grid, start, goal, row, col):
+    '''
+    bfs 檢查是否起點終點連通
+    '''
     queue = deque([start])
     visited = {start}
     while queue:
@@ -94,11 +97,11 @@ def update_q_table(Q_table, cur_s, action, next_s, a, gamma, r, col_n):
     Q_table[node_id_cur][action] += a * (r + gamma * max_v - Q_table[node_id_cur][action])
 
 # --- 3. 主程式 ---
-row_n, col_n = 60,100
+row_n, col_n = 10,10
 map_list, start_point = generate_map(row_n, col_n)
 Q_table = [[0.0 for _ in range(4)] for _ in range(row_n*col_n)]
 a, gamma, r_table = 0.1, 0.95, [-0.1, -5, 100]
-eGreddy, episode_n = 0.5, 300
+eGreddy, episode_n = 0.5, 1000
 
 update_plot(map_list, Q_table, start_point, 0, 0,start_point) # 1. 初始化圖表
 
@@ -125,3 +128,9 @@ for episode in range(episode_n):
 
 plt.ioff()
 plt.show()
+
+'''
+下一步 Q4.py，要作兩件事情
+1.將學習率逐步遞減，讓路線趨近於收斂
+2.先用路線規劃演算法跑一次路線，在讓深度學習沿著這條路現去優化，可以大幅減輕前期訓練時間
+'''
