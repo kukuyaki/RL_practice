@@ -100,7 +100,7 @@ class CartPoleEnv(gym.Env[np.ndarray, int | np.ndarray]):
         #原本是用action決定方向，然後固定給力量
         #但我們讓action直接變成方向和力道
         # force = self.force_mag if action == 1 else -self.force_mag
-        force = action
+        force = float(action[0])
         ##############################################################
         costheta = np.cos(theta)
         sintheta = np.sin(theta)
