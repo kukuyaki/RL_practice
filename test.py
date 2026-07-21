@@ -1,6 +1,10 @@
-import matplotlib.pyplot as plt
-plt.ion()  # 開啟互動模式
-fig, ax = plt.subplots(figsize=(6, 5))
+n = 10
+for x in range(n):
+    print(f"{" "*(n-x)}      {"*" * int((x*2)-1)}")
+    
 
-while 1:
-    pass
+
+n = 5
+space_number = n - x
+star_number  = x
+

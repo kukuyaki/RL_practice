@@ -17,6 +17,9 @@ Q table
 
 之前強化學習時，機器人在做的事情其實就是一直更新Q table的值
 現在加入深度學習後，只是變成更新神經網路的權重和bias!
+
+DQN只能輸出離散的輸出，也就是算出當下節點與動作的Q值
+要能夠算出連續的數值或是機率，要使用PPO等policy base的演算法
 '''
 
 import random
@@ -255,5 +258,17 @@ if __name__ == "__main__":
 可以看到，使用了許多pytorch的語法，尤其是tensor的語法，但其實就是另外一種numpy只是更適合GPU去作運算，沒多難
 所以大家可以先熟悉tensor和pytorch和gymnasium函式庫
 比較好學習
+
+那我們接下來連續三個專題
+1.用value based 演算法解決離散選擇問題，如遊戲鍵盤按鈕操作  G0.py 
+2.用policy based演算法解決連續控制問題，如機器手臂電壓輸入操作  P0.py
+3.actor critic  演算法解決問題 AC0.py
+
+以及
+1.model based與model free 對於迷宮問題的優缺點探討 MBorMF.py
+    model based應該要很強大，但容易因為環境或模型本身的差錯導致預測錯誤
+    model free應該相對花時間，且效果沒那麼好
+    通常model based會更好，但業界通常兩個技術會結合使用
+
 
 '''

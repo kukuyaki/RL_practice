@@ -15,6 +15,8 @@ https://gymnasium.farama.org/introduction/create_custom_env/
 只要能寫出這四個就可以用了
 
 讓我們延伸CartPole v1 ，製作一個輸出包括動力大小的連續數值output
+但因為我們要輸出連續值，DQN這種value based的演算法就不好用
+可以使用ppo等policy based的演算法
 '''
 
 import math
@@ -30,7 +32,7 @@ from gymnasium.vector import AutoresetMode, VectorEnv
 from gymnasium.vector.utils import batch_space
 
 
-class CartPoleEnv(gym.Env[np.ndarray, int | np.ndarray]):
+class CartPoleEnv_YO(gym.Env[np.ndarray, int | np.ndarray]):
     metadata = {
         "render_modes": ["human", "rgb_array"],
         "render_fps": 50,
@@ -52,7 +54,7 @@ class CartPoleEnv(gym.Env[np.ndarray, int | np.ndarray]):
         self.kinematics_integrator = "euler"
 
         # Angle at which to fail the episode
-        self.theta_threshold_radians = 12 * 2 * math.pi / 360
+        self.theta_threshold_radians = 90 * math.pi / 360
         self.x_threshold = 2.4
 
         # Angle limit set to 2 * theta_threshold_radians so failing observation
@@ -67,7 +69,7 @@ class CartPoleEnv(gym.Env[np.ndarray, int | np.ndarray]):
             dtype=np.float32,
         )
         #########################################
-        self.force_mag = 10.0
+        self.force_mag = 50.0
         ##########################################
         ################################################
         self.action_space = spaces.Box(
@@ -81,7 +83,7 @@ class CartPoleEnv(gym.Env[np.ndarray, int | np.ndarray]):
 
         self.render_mode = render_mode
 
-        self.screen_width = 600
+        self.screen_width = 1800
         self.screen_height = 400
         self.screen = None
         self.clock = None

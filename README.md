@@ -29,11 +29,11 @@ RL : gymnasium
 當狀態空間過大（如影像輸入）時，必須引入深度神經網路作為函數近似器。
 
 Value-Based Methods：
-
+    算出來的會是Q值，也就是當前動作好不好，所以算出來的只有做或不做，也就是離散的結果
     DQN (Deep Q-Network)：將 Q-Learning 與神經網路結合，理解 Experience Replay 與 Target Network 的重要性。
 
 Policy-Based Methods：
-
+    算出來的會是機率值，也就是所有動作的機率分布，所以算出來的是每一個動作的可能性，也就是連續的數值
     Policy Gradient：直接優化策略，而非價值函數。
 
 Actor-Critic 架構：同時使用 Policy (Actor) 與 Value (Critic) 進行優化，是現代算法的主流架構（如 A2C, A3C）。
