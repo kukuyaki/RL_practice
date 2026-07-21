@@ -22,84 +22,98 @@ Create_env1.py將教學如何自創環境
         車子位置 < -2.4
         執行 500 次
 '''
+"""
+Classic cart-pole system implemented by Rich Sutton et al.
+Copied from http://incompleteideas.net/sutton/book/code/pole.c
+permalink: https://perma.cc/C9ZM-652R
+"""
 
 import math
-import numpy as np
-import gymnasium as gym
-from gymnasium import spaces
-from gymnasium.envs.classic_control import utils
+from typing import Any
 
-class CartPoleEnv(gym.Env):
+import numpy as np
+
+import gymnasium as gym
+from gymnasium import logger, spaces
+from gymnasium.envs.classic_control import utils
+from gymnasium.error import DependencyNotInstalled
+from gymnasium.vector import AutoresetMode, VectorEnv
+from gymnasium.vector.utils import batch_space
+
+
+class CartPoleEnv(gym.Env[np.ndarray, int | np.ndarray]):
     metadata = {
         "render_modes": ["human", "rgb_array"],
         "render_fps": 50,
     }
 
-    def __init__(self, render_mode: str | None = None):
-        # 1. 物理常數設定
-        self.gravity = 9.8          # 重力加速度
-        self.masscart = 1.0         # 小車質量
-        self.masspole = 0.1         # 桿子質量
-        self.total_mass = self.masspole + self.masscart
-        self.length = 0.5           # 桿子長度的一半 (Half-length)
-        self.polemass_length = self.masspole * self.length
-        self.force_mag = 10.0       # 施加力量的大小 (固定值 10 牛頓)
-        self.tau = 0.02             # 每一個時間步 (Time step) 的時間間隔 (秒)
-        self.kinematics_integrator = 'euler' # 物理積分方法 (歐拉法)
+    def __init__(
+        self, sutton_barto_reward: bool = False, render_mode: str | None = None
+    ):
+        self._sutton_barto_reward = sutton_barto_reward
 
-        # 2. 邊界條件設定 (超出即遊戲結束)
-        # 桿子傾斜角度限制：大於 ±24度 (0.418 rad) 就一定結束，但通常設定 ±12度 就判定失敗
+        self.gravity = 9.8
+        self.masscart = 1.0
+        self.masspole = 0.1
+        self.total_mass = self.masspole + self.masscart
+        self.length = 0.5  # actually half the pole's length
+        self.polemass_length = self.masspole * self.length
+        self.force_mag = 10.0
+        self.tau = 0.02  # seconds between state updates
+        self.kinematics_integrator = "euler"
+
+        # Angle at which to fail the episode
         self.theta_threshold_radians = 12 * 2 * math.pi / 360
-        # 小車位置限制：超出 ±2.4 軌道邊界就算失敗
         self.x_threshold = 2.4
 
-        # 3. 定義動作與觀察空間
-        # 動作空間：0 (向左推), 1 (向右推)
-        self.action_space = spaces.Discrete(2)
-        
-        # 觀察空間：[車子位置, 車子速度, 桿子角度, 桿子角速度]
+        # Angle limit set to 2 * theta_threshold_radians so failing observation
+        # is still within bounds.
         high = np.array(
             [
                 self.x_threshold * 2,
-                np.finfo(np.float32).max,
+                np.inf,
                 self.theta_threshold_radians * 2,
-                np.finfo(np.float32).max,
+                np.inf,
             ],
             dtype=np.float32,
         )
+
+        self.action_space = spaces.Discrete(2)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
 
         self.render_mode = render_mode
-        self.state = None
+
+        self.screen_width = 600
+        self.screen_height = 400
+        self.screen = None
+        self.clock = None
+        self.isopen = True
+        self.state: np.ndarray | None = None
+
         self.steps_beyond_terminated = None
 
     def step(self, action):
-        # 確保傳進來的 action 是合法的 (0 或 1)
-        assert self.action_space.contains(action), f"{action} ({type(action)}) invalid"
-        assert self.state is not None, "Call reset() before using step() method."
-        
-        x, x_dot, theta, theta_dot = self.state
-
-        # 根據動作決定力量方向：0 往左 (-10), 1 往右 (+10)
-        force = self.force_mag if action == 1 else -10.0
-        
-        # --- 以下為核心物理公式 (牛頓力學與運動方程式) ---
-        cos_theta = math.cos(theta)
-        sin_theta = math.sin(theta)
-
-        # 暫時變數計算
-        temp = (
-            force + self.polemass_length * theta_dot ** 2 * sin_theta
-        ) / self.total_mass
-        
-        # 計算角加速度 (thetaacc) 與 加速度 (xacc)
-        thetaacc = (self.gravity * sin_theta - cos_theta * temp) / (
-            self.length * (4.0 / 3.0 - self.masspole * cos_theta ** 2 / self.total_mass)
+        assert self.action_space.contains(action), (
+            f"{action!r} ({type(action)}) invalid"
         )
-        xacc = temp - self.polemass_length * thetaacc * cos_theta / self.total_mass
+        assert self.state is not None, "Call reset before using step method."
+        x, x_dot, theta, theta_dot = self.state
+        force = self.force_mag if action == 1 else -self.force_mag
+        costheta = np.cos(theta)
+        sintheta = np.sin(theta)
 
-        # 使用歐拉法 (Euler's method) 更新下一幀的速度與位置
-        if self.kinematics_integrator == 'euler':
+        # For the interested reader:
+        # https://coneural.org/florian/papers/05_cart_pole.pdf
+        temp = (
+            force + self.polemass_length * np.square(theta_dot) * sintheta
+        ) / self.total_mass
+        thetaacc = (self.gravity * sintheta - costheta * temp) / (
+            self.length
+            * (4.0 / 3.0 - self.masspole * np.square(costheta) / self.total_mass)
+        )
+        xacc = temp - self.polemass_length * thetaacc * costheta / self.total_mass
+
+        if self.kinematics_integrator == "euler":
             x = x + self.tau * x_dot
             x_dot = x_dot + self.tau * xacc
             theta = theta + self.tau * theta_dot
@@ -110,10 +124,8 @@ class CartPoleEnv(gym.Env):
             theta_dot = theta_dot + self.tau * thetaacc
             theta = theta + self.tau * theta_dot
 
-        # 更新環境狀態
-        self.state = (x, x_dot, theta, theta_dot)
+        self.state = np.array((x, x_dot, theta, theta_dot), dtype=np.float64)
 
-        # 4. 判定遊戲是否結束 (Termination 條件)
         terminated = bool(
             x < -self.x_threshold
             or x > self.x_threshold
@@ -121,33 +133,151 @@ class CartPoleEnv(gym.Env):
             or theta > self.theta_threshold_radians
         )
 
-        # 5. 給予獎勵 (Reward)
         if not terminated:
-            reward = 1.0  # 只要還活著，每一步給 +1 分
+            reward = 0.0 if self._sutton_barto_reward else 1.0
         elif self.steps_beyond_terminated is None:
-            # 剛好倒下的那一步
+            # Pole just fell!
             self.steps_beyond_terminated = 0
-            reward = 1.0
+
+            reward = -1.0 if self._sutton_barto_reward else 1.0
         else:
-            # 如果已經倒了卻還繼續呼叫 step，就不給獎勵
+            if self.steps_beyond_terminated == 0:
+                logger.warn(
+                    "You are calling 'step()' even though this environment has already returned terminated = True. "
+                    "You should always call 'reset()' once you receive 'terminated = True' -- any further steps are undefined behavior."
+                )
             self.steps_beyond_terminated += 1
-            reward = 0.0
+
+            reward = -1.0 if self._sutton_barto_reward else 0.0
 
         if self.render_mode == "human":
             self.render()
 
-        # 回傳 Gymnasium 標準的 5 個回傳值
+        # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
         return np.array(self.state, dtype=np.float32), reward, terminated, False, {}
 
-    def reset(self, *, seed: int | None = None, options: dict | None = None):
+    def reset(
+        self,
+        *,
+        seed: int | None = None,
+        options: dict | None = None,
+    ):
         super().reset(seed=seed)
-        
-        # 重置時，給予一個很小的隨機初始狀態 (-0.05 到 0.05 之間)
-        low, high = -0.05, 0.05
+        # Note that if you use custom reset bounds, it may lead to out-of-bound
+        # state/observations.
+        low, high = utils.maybe_parse_reset_bounds(
+            options,
+            -0.05,
+            0.05,  # default low
+        )  # default high
         self.state = self.np_random.uniform(low=low, high=high, size=(4,))
         self.steps_beyond_terminated = None
 
         if self.render_mode == "human":
             self.render()
-            
         return np.array(self.state, dtype=np.float32), {}
+
+    def render(self):
+        if self.render_mode is None:
+            assert self.spec is not None
+            gym.logger.warn(
+                "You are calling render method without specifying any render mode. "
+                "You can specify the render_mode at initialization, "
+                f'e.g. gym.make("{self.spec.id}", render_mode="rgb_array")'
+            )
+            return
+
+        try:
+            import pygame
+            from pygame import gfxdraw
+        except ImportError as e:
+            raise DependencyNotInstalled(
+                'pygame is not installed, run `pip install "gymnasium[classic-control]"`'
+            ) from e
+
+        if self.screen is None:
+            pygame.display.init()
+            if self.render_mode == "human":
+                self.screen = pygame.display.set_mode(
+                    (self.screen_width, self.screen_height)
+                )
+            else:  # mode == "rgb_array"
+                self.screen = pygame.Surface((self.screen_width, self.screen_height))
+        if self.clock is None:
+            self.clock = pygame.time.Clock()
+
+        world_width = self.x_threshold * 2
+        scale = self.screen_width / world_width
+        polewidth = 10.0
+        polelen = scale * (2 * self.length)
+        cartwidth = 50.0
+        cartheight = 30.0
+
+        if self.state is None:
+            return None
+
+        x = self.state
+
+        self.surf = pygame.Surface((self.screen_width, self.screen_height))
+        self.surf.fill((255, 255, 255))
+
+        l, r, t, b = -cartwidth / 2, cartwidth / 2, cartheight / 2, -cartheight / 2
+        axleoffset = cartheight / 4.0
+        cartx = x[0] * scale + self.screen_width / 2.0  # MIDDLE OF CART
+        carty = 100  # TOP OF CART
+        cart_coords = [(l, b), (l, t), (r, t), (r, b)]
+        cart_coords = [(c[0] + cartx, c[1] + carty) for c in cart_coords]
+        gfxdraw.aapolygon(self.surf, cart_coords, (0, 0, 0))
+        gfxdraw.filled_polygon(self.surf, cart_coords, (0, 0, 0))
+
+        l, r, t, b = (
+            -polewidth / 2,
+            polewidth / 2,
+            polelen - polewidth / 2,
+            -polewidth / 2,
+        )
+
+        pole_coords = []
+        for coord in [(l, b), (l, t), (r, t), (r, b)]:
+            coord = pygame.math.Vector2(coord).rotate_rad(-x[2])
+            coord = (coord[0] + cartx, coord[1] + carty + axleoffset)
+            pole_coords.append(coord)
+        gfxdraw.aapolygon(self.surf, pole_coords, (202, 152, 101))
+        gfxdraw.filled_polygon(self.surf, pole_coords, (202, 152, 101))
+
+        gfxdraw.aacircle(
+            self.surf,
+            int(cartx),
+            int(carty + axleoffset),
+            int(polewidth / 2),
+            (129, 132, 203),
+        )
+        gfxdraw.filled_circle(
+            self.surf,
+            int(cartx),
+            int(carty + axleoffset),
+            int(polewidth / 2),
+            (129, 132, 203),
+        )
+
+        gfxdraw.hline(self.surf, 0, self.screen_width, carty, (0, 0, 0))
+
+        self.surf = pygame.transform.flip(self.surf, False, True)
+        self.screen.blit(self.surf, (0, 0))
+        if self.render_mode == "human":
+            pygame.event.pump()
+            self.clock.tick(self.metadata["render_fps"])
+            pygame.display.flip()
+
+        elif self.render_mode == "rgb_array":
+            return np.transpose(
+                np.array(pygame.surfarray.pixels3d(self.screen)), axes=(1, 0, 2)
+            )
+
+    def close(self):
+        if self.screen is not None:
+            import pygame
+
+            pygame.display.quit()
+            pygame.quit()
+            self.isopen = False
