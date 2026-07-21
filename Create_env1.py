@@ -17,55 +17,270 @@ https://gymnasium.farama.org/introduction/create_custom_env/
 讓我們延伸CartPole v1 ，製作一個輸出包括動力大小的連續數值output
 '''
 
-import gymnasium as env_gym
-from gymnasium import spaces
+import math
+from typing import Any
+
 import numpy as np
 
-class CatchEnvironment(env_gym.Env):
-    # 告訴 Gymnasium 支援的渲染模式
-    metadata = {"render_modes": ["human"]}
+import gymnasium as gym
+from gymnasium import logger, spaces
+from gymnasium.envs.classic_control import utils
+from gymnasium.error import DependencyNotInstalled
+from gymnasium.vector import AutoresetMode, VectorEnv
+from gymnasium.vector.utils import batch_space
 
-    def __init__(self):
-        super(CatchEnvironment, self).__init__()
 
-        self.action_space = spaces.Discrete(3)
+class CartPoleEnv(gym.Env[np.ndarray, int | np.ndarray]):
+    metadata = {
+        "render_modes": ["human", "rgb_array"],
+        "render_fps": 50,
+    }
 
-        self.observation_space = spaces.Box(
-            low=np.array([0.0, 0.0], dtype=np.float32),
-            high=np.array([10.0, 10.0], dtype=np.float32),
-            shape=(2,),
+    def __init__(
+        self, sutton_barto_reward: bool = False, render_mode: str | None = None
+    ):
+        self._sutton_barto_reward = sutton_barto_reward
+
+        self.gravity = 9.8
+        self.masscart = 1.0
+        self.masspole = 0.1
+        self.total_mass = self.masspole + self.masscart
+        self.length = 0.5  # actually half the pole's length
+        self.polemass_length = self.masspole * self.length
+        
+        self.tau = 0.02  # seconds between state updates
+        self.kinematics_integrator = "euler"
+
+        # Angle at which to fail the episode
+        self.theta_threshold_radians = 12 * 2 * math.pi / 360
+        self.x_threshold = 2.4
+
+        # Angle limit set to 2 * theta_threshold_radians so failing observation
+        # is still within bounds.
+        high = np.array(
+            [
+                self.x_threshold * 2,
+                np.inf,
+                self.theta_threshold_radians * 2,
+                np.inf,
+            ],
+            dtype=np.float32,
+        )
+        #########################################
+        self.force_mag = 10.0
+        ##########################################
+        ################################################
+        self.action_space = spaces.Box(
+            low=-self.force_mag, 
+            high=self.force_mag, 
+            shape=(1,), 
             dtype=np.float32
         )
+        ###############################################
+        self.observation_space = spaces.Box(-high, high, dtype=np.float32)
 
-        self.agent_pos = 5.0
-        self.target_pos = 3.0
+        self.render_mode = render_mode
 
-    def reset(self, seed=None, options=None):
-        super().reset(seed=seed)
-        self.agent_pos = 5.0
-        self.target_pos = float(np.random.randint(0, 11))
-        
-        state = np.array([self.agent_pos, self.target_pos], dtype=np.float32)
-        return state, {}
+        self.screen_width = 600
+        self.screen_height = 400
+        self.screen = None
+        self.clock = None
+        self.isopen = True
+        self.state: np.ndarray | None = None
+
+        self.steps_beyond_terminated = None
 
     def step(self, action):
-        if action == 0:  # 向左
-            self.agent_pos = max(0.0, self.agent_pos - 1.0)
-        elif action == 2:  # 向右
-            self.agent_pos = min(10.0, self.agent_pos + 1.0)
-        terminated = False
-        reward = 0.0
+        assert self.action_space.contains(action), (
+            f"{action!r} ({type(action)}) invalid"
+        )
+        assert self.state is not None, "Call reset before using step method."
+        x, x_dot, theta, theta_dot = self.state
+        ##############################################################
+        #原本是用action決定方向，然後固定給力量
+        #但我們讓action直接變成方向和力道
+        # force = self.force_mag if action == 1 else -self.force_mag
+        force = action
+        ##############################################################
+        costheta = np.cos(theta)
+        sintheta = np.sin(theta)
 
-        if abs(self.agent_pos - self.target_pos) < 0.1:
-            reward = 10.0
-            terminated = True
+        # For the interested reader:
+        # https://coneural.org/florian/papers/05_cart_pole.pdf
+        temp = (
+            force + self.polemass_length * np.square(theta_dot) * sintheta
+        ) / self.total_mass
+        thetaacc = (self.gravity * sintheta - costheta * temp) / (
+            self.length
+            * (4.0 / 3.0 - self.masspole * np.square(costheta) / self.total_mass)
+        )
+        xacc = temp - self.polemass_length * thetaacc * costheta / self.total_mass
+
+        if self.kinematics_integrator == "euler":
+            x = x + self.tau * x_dot
+            x_dot = x_dot + self.tau * xacc
+            theta = theta + self.tau * theta_dot
+            theta_dot = theta_dot + self.tau * thetaacc
+        else:  # semi-implicit euler
+            x_dot = x_dot + self.tau * xacc
+            x = x + self.tau * x_dot
+            theta_dot = theta_dot + self.tau * thetaacc
+            theta = theta + self.tau * theta_dot
+
+        self.state = np.array((x, x_dot, theta, theta_dot), dtype=np.float64)
+
+        terminated = bool(
+            x < -self.x_threshold
+            or x > self.x_threshold
+            or theta < -self.theta_threshold_radians
+            or theta > self.theta_threshold_radians
+        )
+
+        if not terminated:
+            reward = 0.0 if self._sutton_barto_reward else 1.0
+        elif self.steps_beyond_terminated is None:
+            # Pole just fell!
+            self.steps_beyond_terminated = 0
+
+            reward = -1.0 if self._sutton_barto_reward else 1.0
         else:
-            reward = -0.1  # 沒抓到之前，每走一步扣一點點分數，逼它快點找到目標
+            if self.steps_beyond_terminated == 0:
+                logger.warn(
+                    "You are calling 'step()' even though this environment has already returned terminated = True. "
+                    "You should always call 'reset()' once you receive 'terminated = True' -- any further steps are undefined behavior."
+                )
+            self.steps_beyond_terminated += 1
 
-        truncated = False
-        state = np.array([self.agent_pos, self.target_pos], dtype=np.float32)
+            reward = -1.0 if self._sutton_barto_reward else 0.0
 
-        return state, reward, terminated, truncated, {}
+        if self.render_mode == "human":
+            self.render()
+
+        # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
+        return np.array(self.state, dtype=np.float32), reward, terminated, False, {}
+
+    def reset(
+        self,
+        *,
+        seed: int | None = None,
+        options: dict | None = None,
+    ):
+        super().reset(seed=seed)
+        # Note that if you use custom reset bounds, it may lead to out-of-bound
+        # state/observations.
+        low, high = utils.maybe_parse_reset_bounds(
+            options,
+            -0.05,
+            0.05,  # default low
+        )  # default high
+        self.state = self.np_random.uniform(low=low, high=high, size=(4,))
+        self.steps_beyond_terminated = None
+
+        if self.render_mode == "human":
+            self.render()
+        return np.array(self.state, dtype=np.float32), {}
 
     def render(self):
-        print(f"Agent 位置: {self.agent_pos:.1f} | 目標位置: {self.target_pos:.1f}")
+        if self.render_mode is None:
+            assert self.spec is not None
+            gym.logger.warn(
+                "You are calling render method without specifying any render mode. "
+                "You can specify the render_mode at initialization, "
+                f'e.g. gym.make("{self.spec.id}", render_mode="rgb_array")'
+            )
+            return
+
+        try:
+            import pygame
+            from pygame import gfxdraw
+        except ImportError as e:
+            raise DependencyNotInstalled(
+                'pygame is not installed, run `pip install "gymnasium[classic-control]"`'
+            ) from e
+
+        if self.screen is None:
+            pygame.display.init()
+            if self.render_mode == "human":
+                self.screen = pygame.display.set_mode(
+                    (self.screen_width, self.screen_height)
+                )
+            else:  # mode == "rgb_array"
+                self.screen = pygame.Surface((self.screen_width, self.screen_height))
+        if self.clock is None:
+            self.clock = pygame.time.Clock()
+
+        world_width = self.x_threshold * 2
+        scale = self.screen_width / world_width
+        polewidth = 10.0
+        polelen = scale * (2 * self.length)
+        cartwidth = 50.0
+        cartheight = 30.0
+
+        if self.state is None:
+            return None
+
+        x = self.state
+
+        self.surf = pygame.Surface((self.screen_width, self.screen_height))
+        self.surf.fill((255, 255, 255))
+
+        l, r, t, b = -cartwidth / 2, cartwidth / 2, cartheight / 2, -cartheight / 2
+        axleoffset = cartheight / 4.0
+        cartx = x[0] * scale + self.screen_width / 2.0  # MIDDLE OF CART
+        carty = 100  # TOP OF CART
+        cart_coords = [(l, b), (l, t), (r, t), (r, b)]
+        cart_coords = [(c[0] + cartx, c[1] + carty) for c in cart_coords]
+        gfxdraw.aapolygon(self.surf, cart_coords, (0, 0, 0))
+        gfxdraw.filled_polygon(self.surf, cart_coords, (0, 0, 0))
+
+        l, r, t, b = (
+            -polewidth / 2,
+            polewidth / 2,
+            polelen - polewidth / 2,
+            -polewidth / 2,
+        )
+
+        pole_coords = []
+        for coord in [(l, b), (l, t), (r, t), (r, b)]:
+            coord = pygame.math.Vector2(coord).rotate_rad(-x[2])
+            coord = (coord[0] + cartx, coord[1] + carty + axleoffset)
+            pole_coords.append(coord)
+        gfxdraw.aapolygon(self.surf, pole_coords, (202, 152, 101))
+        gfxdraw.filled_polygon(self.surf, pole_coords, (202, 152, 101))
+
+        gfxdraw.aacircle(
+            self.surf,
+            int(cartx),
+            int(carty + axleoffset),
+            int(polewidth / 2),
+            (129, 132, 203),
+        )
+        gfxdraw.filled_circle(
+            self.surf,
+            int(cartx),
+            int(carty + axleoffset),
+            int(polewidth / 2),
+            (129, 132, 203),
+        )
+
+        gfxdraw.hline(self.surf, 0, self.screen_width, carty, (0, 0, 0))
+
+        self.surf = pygame.transform.flip(self.surf, False, True)
+        self.screen.blit(self.surf, (0, 0))
+        if self.render_mode == "human":
+            pygame.event.pump()
+            self.clock.tick(self.metadata["render_fps"])
+            pygame.display.flip()
+
+        elif self.render_mode == "rgb_array":
+            return np.transpose(
+                np.array(pygame.surfarray.pixels3d(self.screen)), axes=(1, 0, 2)
+            )
+
+    def close(self):
+        if self.screen is not None:
+            import pygame
+
+            pygame.display.quit()
+            pygame.quit()
+            self.isopen = False
