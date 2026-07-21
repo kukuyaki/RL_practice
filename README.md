@@ -20,6 +20,8 @@
     課程學習：將太複雜的工作目標拆成多個小目標，循序漸進學習
     隨機網路蒸馏（Random Network Distillation, RND）：讓機器人更有好奇心
 <br>
+deep learning: pytorch
+RL : gymnasium
 <br>
 
 

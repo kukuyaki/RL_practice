@@ -27,7 +27,35 @@ import torch.nn as nn
 import torch.optim as optim
 import gymnasium as env_gym
 import time
+'''
+DQN有兩個重點技術
+    Experience Replay（經驗回放池）
+    Target Network（目標網路）
 
+這個範例我們使用CartPole-v1環境
+    State — 遊戲輸出
+        車子的位置 — 值域：-4.8 ～ 4.8
+        車子的加速度 — 值域：-Inf ~ Inf
+        柱子對車子的角度 — 值域：-24 deg~ 24 deg
+        柱子倒下的加速度 — 值域：-Inf ~ Inf
+    Action— 遊戲輸入
+        0：向左推動
+        1：向右推動
+    Rewards — 每個 step 評分方式
+        結束：0 分
+        活著：1 分
+    終止條件
+        柱子對車子的角度 > 12 deg
+        柱子對車子的角度 < -12 deg
+        車子位置 > 2.4
+        車子位置 < -2.4
+        執行 500 次
+
+你會發現他的神經網路輸出，也就是遊戲輸入，只有0或1，表示他沒有大力推或小力推的連續數值變化
+算是一個分類的離散問題
+reward也只有活著或結束，並沒有根據距離、角度等方面去計算獎勵
+如果想要加強這個環境，我們可以從這些方面下手
+'''
 # ==========================================
 # 1. 定義經驗回放池 (Experience Replay Buffer)
 # ==========================================
@@ -217,3 +245,15 @@ if __name__ == "__main__":
 
     eval_env.close()
     print("所有展示結束！")
+
+
+'''
+這次使用到了gymnasium來創立環境
+創立一個agent class
+在agent裡面用pytorch來建立深度學習神經網路
+
+可以看到，使用了許多pytorch的語法，尤其是tensor的語法，但其實就是另外一種numpy只是更適合GPU去作運算，沒多難
+所以大家可以先熟悉tensor和pytorch和gymnasium函式庫
+比較好學習
+
+'''

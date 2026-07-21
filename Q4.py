@@ -208,5 +208,7 @@ Q4.py 優化
 之後我們還要試試看model based
 試試看policy based 和 actor critic
 
-下一關，DQN.py
+下一關，DQN.py，但在進入DQN前，請先去學習以下東西
+    1.gymnasium使用 "Create_env0.py"
+    2.深度學習神經網路 pytorch使用 "deep_learning_practice repositories"
 '''
