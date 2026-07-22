@@ -1,3 +1,5 @@
+
+
 import random
 import numpy as np
 import collections
@@ -8,6 +10,8 @@ import gymnasium as env_gym
 import time
 from gymnasium.envs.registration import register
 '''
+環境：Create_env1.py
+
 用DQN去嘗試離散解法
 效果不彰
 '''

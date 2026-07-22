@@ -1,4 +1,6 @@
 '''
+原本的環境
+
 這是gymnasium的CartPoleEnv環境的程式碼
 Create_env1.py將教學如何自創環境
 

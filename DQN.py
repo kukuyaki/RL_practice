@@ -20,6 +20,7 @@ Q table
 
 DQN只能輸出離散的輸出，也就是算出當下節點與動作的Q值
 要能夠算出連續的數值或是機率，要使用PPO等policy base的演算法
+且DQN的泛化能力差
 '''
 
 import random

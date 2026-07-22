@@ -7,6 +7,8 @@ import gymnasium as env_gym
 import time
 from gymnasium.envs.registration import register
 '''
+環境：Create_env1.py
+
 用ppo去嘗試連續的輸出
 有好一些，但還是有加強的空間
 '''
