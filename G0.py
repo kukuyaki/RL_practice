@@ -46,6 +46,20 @@ class game(gyn.Env):
         self.door = [9,8]
         self.open_door = []
         self.monster = [9,4]
+        self.boarder = [[0,i] for i in range(11) ] + [[i,0] for i in range(11)] + [[i,11] for i in range(11)] +[[11,i] for i in range(11)]
+#   11邊邊邊邊邊邊邊邊邊邊邊邊    
+#   10邊邊邊邊邊邊邊邊邊邊箱邊
+#    9邊邊邊邊邊邊邊邊邊邊邊邊
+#    8邊邊邊邊邊邊邊邊邊邊邊邊
+#    7邊邊邊邊邊邊邊邊邊邊邊邊
+#    6邊邊邊邊邊邊邊邊邊邊邊邊
+#    5邊邊邊邊邊邊邊邊邊邊邊邊
+#    4邊邊邊邊邊邊邊邊邊邊邊邊
+#    3邊邊邊邊邊邊邊邊邊邊邊邊
+#    2邊邊邊邊邊邊邊邊邊邊邊邊
+#    1邊我邊邊邊邊邊邊邊邊邊邊
+#    0邊邊邊邊邊邊邊邊邊邊邊邊
+#     0 1 2 34 5 67 8 9 10
         self.action_direct = {
                     1:[0,1],
                     2:[0,-1],
@@ -63,7 +77,9 @@ class game(gyn.Env):
     def check_colli(pos):
         #超出地圖，撞到牆壁或門，怪物
         pass
-
+    def interect_chest_door():
+        #當下節點是箱子或上下左右有沒有門
+        pass
     def step(self, action):
         terminated = 0
         reward = 0
@@ -73,7 +89,5 @@ class game(gyn.Env):
             direc =self.action_direct[action]
             next_s == [self.agent_x+direc[0], self.agent_y+direc[1]]
             next_s, reward, terminated = check_colli(next_s) #確認有無超出範圍或碰撞
-        self.agent_x = next_s[0]
-        self.agent_y = next_s[1]
         reward = -0.1
         return next_s, reward, terminated
