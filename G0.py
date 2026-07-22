@@ -64,6 +64,13 @@ class Game_A(gym.Env):
 #    1邊我口口口口口口口口口口邊
 #    0邊邊邊邊邊邊邊邊邊邊邊邊邊
 #     0 1 2 34 5 67 8 9 1011
+        self.action_space = gym.spaces.Discrete(5)
+        self.observation_space = gym.spaces.Dict(
+            {
+                "agent_pos": (self.agent_x, self.agent_y),
+                "target": gym.spaces.Box(0, size - 1, shape=(2,), dtype=int),  # [x, y] coordinates
+            }
+        )
         self.action_direct = {
                     1:[0,1],
                     2:[0,-1],
