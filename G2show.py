@@ -103,7 +103,8 @@ if __name__ == "__main__":
 
     env.close()
     print("播放完畢，視窗已關閉。")
-
+    torch.save(ppo_agent.policy.state_dict(), "./ppo_pusher.pth")
+    print(f"Model successfully saved to {filepath}")
 
 
 
@@ -123,5 +124,7 @@ G系列實驗結語：
     經驗回放優先採用Loss值大的樣本
     調整資料結構，優先使用numpy
     境量避免cpu和gpu之間的切換
+
+下一步：PPO_0.py 直接跳過policy based, 直接學習actor critic吧！！
 
 '''
